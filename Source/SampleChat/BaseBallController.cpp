@@ -14,9 +14,12 @@ void ABaseBallController::BeginPlay()
         {
             WidgetBaseBall->AddToViewport();
             UE_LOG(LogTemp, Warning, TEXT("Widget successfully added to viewport"));
+
+            Server_RequestScore();
         }
     }
 }
+
 
 void ABaseBallController::OnEnterPressed(const FString& Message)
 {
@@ -72,3 +75,32 @@ void ABaseBallController::Client_ClearChatBox_Implementation()
         WidgetBaseBall->EditableTextBox_92->SetText(FText::GetEmpty());
     }
 }
+
+void ABaseBallController::Client_UpdateScore_Implementation(int32 GuestWin, int32 HostWin)
+{
+    if (WidgetBaseBall)
+    {
+        WidgetBaseBall->UpdateScoreBoard(GuestWin, HostWin);
+    }
+}
+
+void ABaseBallController::Server_RequestScore_Implementation()
+{
+    ABaseBallGameMode* GameMode = Cast<ABaseBallGameMode>(UGameplayStatics::GetGameMode(this));
+    if (GameMode)
+    {
+        int32 GuestScore = GameMode->GetScore(TEXT("Guest"));
+        int32 HostScore = GameMode->GetScore(TEXT("Host"));
+
+        Client_UpdateScore(GuestScore, HostScore);
+    }
+}
+
+void ABaseBallController::Client_UpdateTimer_Implementation(int32 SecondsLeft)
+{
+    if (WidgetBaseBall)
+    {
+        WidgetBaseBall->UpdateTimerText(SecondsLeft);
+    }
+}
+

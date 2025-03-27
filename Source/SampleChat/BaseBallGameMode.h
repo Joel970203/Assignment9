@@ -25,13 +25,24 @@ public:
 
     void BroadcastMessage(const FString& Msg);
 
+    int32 GetScore(const FString& Role) const;
+
 protected:
     TArray<int32> AnswerCode;
     TMap<APlayerController*, int32> TryCounts;
     TSet<APlayerController*> FinishedPlayers;
-    bool bShouldClearUI = false;
+    TMap<FString, int32> WinCounts;
+
+    UPROPERTY()
+    APlayerController* CurrentTurnPlayer;
+
+    FTimerHandle CountdownTimerHandle;
+    int32 RemainingTime = 10;
 
     void ResetGame();
+    void StartTurnTimer();
+    void UpdateCountdown();
+
     TArray<int32> GenerateRandomNumber();
     bool ParseInputToArray(const FString& Input, TArray<int32>& OutArray);
     FString CalculateResult(const TArray<int32>& Guess);

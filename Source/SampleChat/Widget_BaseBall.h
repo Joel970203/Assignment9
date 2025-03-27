@@ -21,6 +21,18 @@ public:
     UPROPERTY(meta = (BindWidget))
     class UEditableTextBox* EditableTextBox_92;
 
+    UPROPERTY(meta = (BindWidget))
+    class UEditableTextBox* EditableTextBox_93;  
+
+    UPROPERTY(meta = (BindWidget))
+    class UEditableTextBox* EditableTextBox_94; 
+
+    UFUNCTION()
+    void UpdateScoreBoard(int32 GuestWin, int32 HostWin);
+
+    UFUNCTION(BlueprintCallable)
+    void UpdateTimerText(int32 Seconds);
+
     UFUNCTION(BlueprintCallable, Category = "Chat")
     void OnEnterPressed(const FString& Message);
 

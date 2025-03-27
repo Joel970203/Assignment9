@@ -37,10 +37,28 @@ void UWidget_BaseBall::OnTextCommitted(const FText& Text, ETextCommit::Type Comm
     }
 }
 
+void UWidget_BaseBall::UpdateScoreBoard(int32 GuestWin, int32 HostWin)
+{
+    if (EditableTextBox_93)
+    {
+        FString ScoreText = FString::Printf(TEXT("Guest : %d       Host : %d"), GuestWin, HostWin);
+        EditableTextBox_93->SetText(FText::FromString(ScoreText));
+    }
+}
+
 void UWidget_BaseBall::SetResultInEditableTextBox(const FString& Result)
 {
     if (EditableTextBox_92)
     {
         EditableTextBox_92->SetText(FText::FromString(Result));
+    }
+}
+
+void UWidget_BaseBall::UpdateTimerText(int32 Seconds)
+{
+    if (EditableTextBox_94) 
+    {
+        FString Text = FString::Printf(TEXT("%d"), Seconds);
+        EditableTextBox_94->SetText(FText::FromString(Text));
     }
 }

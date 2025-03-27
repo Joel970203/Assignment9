@@ -13,7 +13,14 @@ public:
     virtual void BeginPlay() override;
 
     UFUNCTION(Client, Reliable)
+    void Client_UpdateScore(int32 GuestWin, int32 HostWin);
+
+
+    UFUNCTION(Client, Reliable)
     void Client_ClearChatBox();
+
+    UFUNCTION(Server, Reliable)
+    void Server_RequestScore();
 
     UFUNCTION()
     void OnEnterPressed(const FString& Message);
@@ -29,4 +36,8 @@ public:
 
     UPROPERTY()
     class UWidget_BaseBall* WidgetBaseBall;
+
+    UFUNCTION(Client, Reliable)
+    void Client_UpdateTimer(int32 SecondsLeft);
+
 };

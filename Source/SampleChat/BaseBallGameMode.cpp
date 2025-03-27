@@ -8,7 +8,23 @@ void ABaseBallGameMode::BeginPlay()
 {
     Super::BeginPlay();
     AnswerCode = GenerateRandomNumber();
+
     UE_LOG(LogTemp, Warning, TEXT("[GameMode] New Answer: %d%d%d"), AnswerCode[0], AnswerCode[1], AnswerCode[2]);
+
+    int32 GuestScore = WinCounts.FindRef(TEXT("Guest"));
+    int32 HostScore = WinCounts.FindRef(TEXT("Host"));
+
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
+        if (Ctrl)
+        {
+            Ctrl->Client_UpdateScore(GuestScore, HostScore);
+        }
+    }
+
+    CurrentTurnPlayer = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+    StartTurnTimer();
 }
 
 TArray<int32> ABaseBallGameMode::GenerateRandomNumber()
@@ -80,8 +96,138 @@ FString ABaseBallGameMode::ProcessPlayerInput(APlayerController* Player, const F
     return Result;
 }
 
+int32 ABaseBallGameMode::GetScore(const FString& InRole) const
+{
+    return WinCounts.Contains(InRole) ? WinCounts[InRole] : 0;
+}
+
+void ABaseBallGameMode::ClearAllClientChatBox()
+{
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
+        if (Ctrl)
+        {
+            Ctrl->Client_ClearChatBox();
+        }
+    }
+
+    ResetGame();
+}
+
+void ABaseBallGameMode::ResetGame()
+{
+    AnswerCode = GenerateRandomNumber();
+    TryCounts.Empty();
+    FinishedPlayers.Empty();
+
+    CurrentTurnPlayer = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
+        if (Ctrl)
+        {
+            Ctrl->Client_ClearChatBox();
+        }
+    }
+
+    StartTurnTimer();
+    UE_LOG(LogTemp, Warning, TEXT("[GameMode] Game Reset. New Answer: %d%d%d"), AnswerCode[0], AnswerCode[1], AnswerCode[2]);
+}
+
+void ABaseBallGameMode::StartTurnTimer()
+{
+    RemainingTime = 10;
+
+    GetWorld()->GetTimerManager().SetTimer(CountdownTimerHandle, this, &ABaseBallGameMode::UpdateCountdown, 1.0f, true);
+}
+
+void ABaseBallGameMode::UpdateCountdown()
+{
+    RemainingTime--;
+
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
+        if (Ctrl)
+        {
+            Ctrl->Client_UpdateTimer(RemainingTime);
+        }
+    }
+
+    if (RemainingTime <= 0 && CurrentTurnPlayer)
+    {
+        GetWorld()->GetTimerManager().ClearTimer(CountdownTimerHandle);
+
+        FString SenderRole = (CurrentTurnPlayer == UGameplayStatics::GetPlayerController(GetWorld(), 0)) ? TEXT("Host") : TEXT("Guest");
+        TryCounts.FindOrAdd(CurrentTurnPlayer)++;
+
+        FString Msg = FString::Printf(TEXT("%s out of time (%d)"), *SenderRole, TryCounts[CurrentTurnPlayer]);
+
+        for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+        {
+            ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
+            if (Ctrl)
+            {
+                Ctrl->Client_DisplayResult(TEXT("System"), 0, TEXT(""), Msg);
+            }
+        }
+
+        if (TryCounts[CurrentTurnPlayer] >= 3)
+        {
+            FinishedPlayers.Add(CurrentTurnPlayer);
+        }
+
+        if (FinishedPlayers.Num() >= 2)
+        {
+            for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+            {
+                ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
+                if (Ctrl)
+                {
+                    Ctrl->Client_DisplayResult(TEXT("System"), 0, TEXT(""), TEXT("DRAW !!  REGAME~"));
+                }
+            }
+
+            GetWorld()->GetTimerManager().SetTimer(ClearUITimerHandle, this, &ABaseBallGameMode::ClearAllClientChatBox, 2.0f, false);
+            return;
+        }
+
+        for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+        {
+            APlayerController* Other = It->Get();
+            if (Other != CurrentTurnPlayer)
+            {
+                CurrentTurnPlayer = Other;
+                break;
+            }
+        }
+
+        StartTurnTimer();
+    }
+}
+
+void ABaseBallGameMode::BroadcastMessage(const FString& Msg)
+{
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        if (APlayerController* PC = It->Get())
+        {
+            PC->ClientMessage(Msg);
+        }
+    }
+}
+
 void ABaseBallGameMode::ProcessPlayerInputFromUI(APlayerController* Player, const FString& Message)
 {
+    if (Player != CurrentTurnPlayer)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode] Ignored input from non-turn player: %s"), *Message);
+        return;
+    }
+
+    GetWorld()->GetTimerManager().ClearTimer(CountdownTimerHandle);
     FString Result = ProcessPlayerInput(Player, Message);
     int32 TryCount = TryCounts.FindRef(Player);
 
@@ -91,7 +237,6 @@ void ABaseBallGameMode::ProcessPlayerInputFromUI(APlayerController* Player, cons
         SenderRole = TEXT("Host");
     }
 
-    // 클라이언트들에게 결과 전송
     for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
     {
         ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
@@ -101,9 +246,13 @@ void ABaseBallGameMode::ProcessPlayerInputFromUI(APlayerController* Player, cons
         }
     }
 
-    // WIN 처리
     if (Result.Contains("3S"))
     {
+        WinCounts.FindOrAdd(SenderRole)++;
+
+        int32 HostScore = WinCounts.FindRef(TEXT("Host"));
+        int32 GuestScore = WinCounts.FindRef(TEXT("Guest"));
+
         FString WinMessage = SenderRole + TEXT(" WIN !!  REGAME~");
 
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
@@ -112,21 +261,14 @@ void ABaseBallGameMode::ProcessPlayerInputFromUI(APlayerController* Player, cons
             if (Ctrl)
             {
                 Ctrl->Client_DisplayResult(TEXT("System"), 0, TEXT(""), WinMessage);
+                Ctrl->Client_UpdateScore(GuestScore, HostScore);
             }
         }
 
-        // 2초 뒤에 클리어 + 리셋 진행
         GetWorld()->GetTimerManager().SetTimer(ClearUITimerHandle, this, &ABaseBallGameMode::ClearAllClientChatBox, 2.0f, false);
         return;
     }
 
-
-
-
-
-
-
-    // 실패 처리
     if (TryCounts[Player] >= 3)
     {
         FinishedPlayers.Add(Player);
@@ -145,58 +287,19 @@ void ABaseBallGameMode::ProcessPlayerInputFromUI(APlayerController* Player, cons
             }
         }
 
-        // 2초 뒤 클리어 + 리셋
         GetWorld()->GetTimerManager().SetTimer(ClearUITimerHandle, this, &ABaseBallGameMode::ClearAllClientChatBox, 2.0f, false);
         return;
     }
 
-
-
-
-}
-
-
-void ABaseBallGameMode::ResetGame()
-{
-    AnswerCode = GenerateRandomNumber();
-    TryCounts.Empty();
-    FinishedPlayers.Empty();
-
     for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
     {
-        ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
-        if (Ctrl)
+        APlayerController* OtherPlayer = It->Get();
+        if (OtherPlayer != Player)
         {
-            Ctrl->Client_ClearChatBox(); 
+            CurrentTurnPlayer = OtherPlayer;
+            break;
         }
     }
 
+    StartTurnTimer();
 }
-
-
-void ABaseBallGameMode::BroadcastMessage(const FString& Msg)
-{
-    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-    {
-        if (APlayerController* PC = It->Get())
-        {
-            PC->ClientMessage(Msg);
-        }
-    }
-}
-
-void ABaseBallGameMode::ClearAllClientChatBox()
-{
-    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-    {
-        ABaseBallController* Ctrl = Cast<ABaseBallController>(It->Get());
-        if (Ctrl)
-        {
-            Ctrl->Client_ClearChatBox();
-        }
-    }
-
-    ResetGame(); 
-}
-
-

@@ -1,17 +1,7 @@
-# 🎮 숫자 야구 멀티플레이 게임 (Unreal Listen Server 기반)
+# 🎮 [9번 과제] 숫자 야구 게임
 
 Unreal Engine 기반의 멀티플레이 숫자 야구 게임입니다.  
 Listen Server 구조를 활용하여 호스트와 게스트가 실시간으로 게임을 플레이하며, 제한된 턴 안에 정답을 유추하는 턴제 게임입니다.
-
----
-
-## ⚙️ 기술 스택
-
-- Unreal Engine 5
-- C++
-- Blueprint (UI 및 입력)
-- Listen Server 구조 (Unreal Networking)
-- UMG (언리얼 UI 시스템)
 
 ---
 
@@ -35,7 +25,7 @@ Listen Server 구조를 활용하여 호스트와 게스트가 실시간으로 �
   - `3S0B`: 3 스트라이크 (정답)
   - `1S2B`: 1 스트라이크, 2 볼
   - `OUT`: 스트라이크/볼 없음
-
+  - 'InvalidOutput' : 잘못된 입력, 하지만 횟수 차감
 ---
 
 ## 🔄 게임 흐름
@@ -84,6 +74,3 @@ Listen Server 구조를 활용하여 호스트와 게스트가 실시간으로 �
 
 ---
 
-## 📁 프로젝트 구성 예시
-
-# Assignment9
